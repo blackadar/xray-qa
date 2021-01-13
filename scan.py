@@ -1,6 +1,13 @@
 import matplotlib.patches
 from PIL import Image
 import math
+import pathlib
+import configparser
+
+config = configparser.ConfigParser()
+config.read('xray-qa.cfg')
+WIDTH = int(config['roi-size']['width'])
+HEIGHT = int(config['roi-size']['height'])
 
 
 class Scan:
@@ -10,24 +17,36 @@ class Scan:
         self.attribs = attribs
         self.joints = joints
         self.patient = patient
-        self.image_path = image_path
-        self.info_path = info_path
+        self.image_path = pathlib.Path(image_path)
+        self.info_path = pathlib.Path(info_path)
         self.contrast_enhancement = 1.0
         self.selected_joint = None
         self.backup_image = None
+        self.modified = False
+
+    def __str__(self):
+        st = f"<{self.patient}>\n" \
+               f"{self.image_path} {self.info_path}\n" \
+               f"attributes: {self.attribs}\n"
+        for joint in self.joints:
+            st += f"{joint}\n"
+        return st
 
     @staticmethod
     def from_files(image_path, info_path):
         image = Image.open(image_path)
         info_lines = open(info_path, mode='r').readlines()
-        attribs = info_lines[0]
+        attribs = info_lines[0].strip()
         joints = []
         for line in info_lines[1:]:
             joints.append(Joint.from_line(line))
         return Scan(image, joints, attribs, patient=image_path.stem, image_path=image_path, info_path=info_path)
 
-    def save(self, to_file):
-        pass
+    def save(self):
+        with open(self.info_path, 'w') as f:
+            f.write(f"{self.attribs}\n")
+            for joint in self.joints:
+                f.write(f"{joint.save_format()}\n")
 
 
 class Joint:
@@ -39,22 +58,26 @@ class Joint:
         self.label = label
         self.patch = self._get_patch()
 
+    def __str__(self):
+        return f"    [{self.label}]" \
+               f"    {self.x}, {self.y}  {self.angle}"
+
+    def save_format(self):
+        return f"{self.label} {self.x} {self.y} {self.angle}"
+
     def reload_patch(self):
         self.patch = self._get_patch()
 
     @staticmethod
     def from_line(txt):
         spl = txt.split(' ')
-        label = spl[0].upper()
+        label = spl[0].strip()
         x = int(spl[1])
         y = int(spl[2])
         angle = float(spl[3])
         return Joint(x, y, angle, label)
 
     def _get_patch(self):
-        # TODO: Dynamic w/h from file
-        WIDTH = 200
-        HEIGHT = 100
 
         def convert_angle(radians):
             return math.degrees(radians)
