@@ -31,6 +31,11 @@ class Scan:
         self.backup_image = None
         self.modified = False
 
+        try:  # Needs to be an int to facilitate sorting
+            self.patient = int(self.patient)
+        except Exception as e:
+            print(f"Unable to cast Patient ID '{self.patient}' to int.\n {e}")
+
     def __str__(self):
         st = f"<{self.patient}>\n" \
                f"{self.image_path} {self.info_path}\n" \

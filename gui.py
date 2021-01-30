@@ -326,7 +326,6 @@ class App(tkinter.Tk):
         Then calls redraw_scan() to start the image display.
         IMPORTANT: Assumes .txt infos are a subset of images. There cannot be a .txt without matching .png or this will
         ignore it.
-        IMPORTANT: Assumes that sorting based on numerical ascension is implicitly provided by Pathlib via the OS.
         :return: None
         """
         self.plot.clear()
@@ -357,6 +356,8 @@ class App(tkinter.Tk):
 
         for image, info in zip(images, sync_infos):
             self.scans.append(Scan.from_files(image, info))
+
+        self.scans.sort(key=lambda x: x.patient)  # Sort based on patient number
 
         self.redraw_scan()
 
