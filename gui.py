@@ -368,6 +368,7 @@ class App(tkinter.Tk):
         """
         patient = tkinter.simpledialog.askstring("Custom Start", "Patient ID")
         patient = patient.strip()
+        self.canvas.get_tk_widget().focus_force()
 
         found = False
         for idx, scan in enumerate(self.scans):
