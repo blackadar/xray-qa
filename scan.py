@@ -1,9 +1,17 @@
+"""
+Objects to represent the data structures of the project.
+"""
+
 import matplotlib.patches
 from PIL import Image
 import math
 import pathlib
+import os
 import configparser
 import numpy as np
+
+# Attempt to change working directory to script location
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 config = configparser.ConfigParser()
 config.read('xray-qa.cfg')
@@ -88,7 +96,7 @@ class Scan:
         """
         if self.modified:
             if 'q' not in self.attribs:
-                self.attribs = self.attribs + 'q'
+                self.attribs += 'q'
         if self.info_path is None:
             inf = self.image_path.parent / (self.image_path.stem + '.txt')
             print(f"Creating new info file: {inf}")
@@ -110,6 +118,7 @@ class Joint:
         self.angle = angle
         self.label = label
         self.patch = self._get_patch()
+        self.marker_patch = self._get_patch(marker=True)
 
     def __str__(self):
         return f"    [{self.label}]" \
@@ -127,6 +136,7 @@ class Joint:
         Sets the patch property based on internal methods.
         """
         self.patch = self._get_patch()
+        self.marker_patch = self._get_patch(marker=True)
 
     @staticmethod
     def from_line(txt):
@@ -142,7 +152,7 @@ class Joint:
         angle = float(spl[3])
         return Joint(x, y, angle, label)
 
-    def _get_patch(self):
+    def _get_patch(self, marker=False):
 
         def convert_angle(radians):
             """
@@ -178,8 +188,16 @@ class Joint:
 
             return c_x, c_y
 
-        t_x, t_y = convert_coordinates(self.x, self.y, WIDTH, HEIGHT, self.angle)
-        angle = convert_angle(self.angle)
+        if marker:
+            t_x, t_y = convert_coordinates(self.x, self.y, WIDTH, 0, self.angle)
+            angle = convert_angle(self.angle)
 
-        return matplotlib.patches.Rectangle((t_x, t_y), WIDTH, HEIGHT, angle,
-                                            linewidth=0.5, edgecolor='r', facecolor='none')
+            return matplotlib.patches.Rectangle((t_x, t_y), WIDTH, 0, angle,
+                                                linewidth=0.5, edgecolor='r', facecolor='none',
+                                                linestyle=(0, (5, 10)), alpha=0.5)
+        else:
+            t_x, t_y = convert_coordinates(self.x, self.y, WIDTH, HEIGHT, self.angle)
+            angle = convert_angle(self.angle)
+
+            return matplotlib.patches.Rectangle((t_x, t_y), WIDTH, HEIGHT, angle,
+                                                linewidth=0.5, edgecolor='r', facecolor='none')

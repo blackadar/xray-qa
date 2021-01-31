@@ -2,6 +2,7 @@
 GUI to allow the user to manually change ROIs on a hand X-Ray image.
 @author: Jordan Blackadar
 """
+import os
 import pathlib
 import tkinter
 import tkinter.simpledialog
@@ -15,16 +16,25 @@ from matplotlib.figure import Figure
 
 from scan import Scan, Joint
 
+# Attempt to change working directory to script location
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
 prompts = ['mcp2', 'pip2', 'dip2',
            'mcp3', 'pip3', 'dip3',
            'mcp4', 'pip4', 'dip4',
            'mcp5', 'pip5', 'dip5']
+
+colors = ['red', 'orange', 'yellow',
+          'green', 'blue', 'purple',
+          'peru', 'lime', 'teal',
+          'maroon', 'darkblue', 'deeppink']
 
 
 class App(tkinter.Tk):
     """
     Class to extent tkinter.Tk for GUI
     """
+
     def __init__(self):
         # Properties and Attributes
         tkinter.Tk.__init__(self)
@@ -36,6 +46,7 @@ class App(tkinter.Tk):
         self.directory = None
         self.scans = []
         self.scans_index = 0
+        self.colors_index = 0
         self.legend = True
         self.figure = Figure(dpi=100)
         self.figure.set_facecolor('grey')
@@ -48,7 +59,9 @@ class App(tkinter.Tk):
                        tkinter.PhotoImage(file='icons/filesave.png'),
                        tkinter.PhotoImage(file='icons/zoom_crop.png'),
                        tkinter.PhotoImage(file='icons/zoom_joint.png'),
-                       tkinter.PhotoImage(file='icons/zoom_home.png')]
+                       tkinter.PhotoImage(file='icons/zoom_home.png'),
+                       tkinter.PhotoImage(file='icons/left-arrow.png'),
+                       tkinter.PhotoImage(file='icons/right-arrow.png')]
         self.iconphoto(False, self.images[2])
 
         # Window and Canvas
@@ -70,6 +83,8 @@ class App(tkinter.Tk):
         zoom_home = tkinter.Button(master=toolbar, image=self.images[6], command=self.zoom_home, bg="grey")
         zoom_one = tkinter.Button(master=toolbar, image=self.images[4], command=self.zoom_one, bg="grey")
         zoom_two = tkinter.Button(master=toolbar, image=self.images[5], command=self.zoom_two, bg="grey")
+        prev = tkinter.Button(master=toolbar, image=self.images[7], command=self.prev_scan, bg="grey")
+        nxt = tkinter.Button(master=toolbar, image=self.images[8], command=self.next_scan, bg="grey")
         self.prompt = tkinter.Label(master=toolbar, text="", bg="grey")
         self.xylabel = tkinter.Label(master=toolbar, text="", bg="grey")
         save_button.pack(side="left")
@@ -78,6 +93,8 @@ class App(tkinter.Tk):
         zoom_home.pack(side="left")
         zoom_one.pack(side="left")
         zoom_two.pack(side="left")
+        prev.pack(side="left")
+        nxt.pack(side="left")
         self.prompt.pack(side="left")
         self.xylabel.pack(side="right")
         toolbar.pack(side="bottom", fill=tkinter.X)
@@ -120,6 +137,16 @@ class App(tkinter.Tk):
         else:
             return None
 
+    @property
+    def next_color(self):
+        """
+        Property to provide the next color to use in the plot.
+        :return: str Color to use next
+        """
+        color = colors[self.colors_index]
+        self.colors_index = self.colors_index + 1 if self.colors_index + 1 < len(colors) else 0
+        return color
+
     @staticmethod
     def controls_box():
         """
@@ -130,6 +157,7 @@ class App(tkinter.Tk):
                                                       f"Right Click: Move Selected ROI to position\n"
                                                       f"WASD: Translate ROI along x/y\n"
                                                       f"<- , ->: Rotate ROI CCW/CW\n"
+                                                      f"Up, Down: Minor ROI height adjustment\n"
                                                       f"[ , ]: Decrease/Increase Contrast\n"
                                                       f"F12: Toggle Fullscreen View\n"
                                                       f"Q: Cycle through joint selection\n"
@@ -185,30 +213,16 @@ class App(tkinter.Tk):
             self.rotate_roi(-0.05)
         elif event.key == "right":
             self.rotate_roi(0.05)
+        elif event.key == 'up':
+            self.translate_roi(0, -2)
+        elif event.key == 'down':
+            self.translate_roi(0, 2)
         elif event.key == "f12":
             self.toggle_fullscreen()
         elif event.key == "q":
-            if self.current_scan.selected_joint is not None:
-                if self.current_scan.selected_joint < len(self.current_scan.joints) - 1:
-                    self.current_scan.selected_joint += 1
-                else:
-                    self.current_scan.selected_joint = 0
-            else:
-                self.current_scan.selected_joint = 0
-            for idx, joint in enumerate(self.current_scan.joints):
-                if idx == self.current_scan.selected_joint:
-                    joint.patch.set_edgecolor('yellow')
-                else:
-                    joint.patch.set_edgecolor('red')
-            self.canvas.draw()
+            self.select_next_joint()
         elif event.key == "e":
-            if self.scans_index < len(self.scans) - 1:
-                if self.autosave:
-                    self.save_scan()
-                self.scans_index += 1
-                self.redraw_scan()
-            else:
-                self.bell()
+            self.next_scan()
         elif event.key == 'x':
             self.clear_rois()
         elif event.key == 'z':
@@ -253,6 +267,7 @@ class App(tkinter.Tk):
         Handles mouse click events, including middle click.
         :param event: Matplotlib Event
         """
+
         # print(f"{event.button} Click: {event.xdata}, {event.ydata}")
 
         def find_nearest_center(x, y):
@@ -262,11 +277,11 @@ class App(tkinter.Tk):
             :param y: int y coord
             :return: int index of nearest joint
             """
-            xs = np.array([joint.x for joint in self.current_scan.joints])
-            ys = np.array([joint.y for joint in self.current_scan.joints])
+            xs = np.array([j.x for j in self.current_scan.joints])
+            ys = np.array([j.y for j in self.current_scan.joints])
             distance_partial = (ys - y) ** 2 + (xs - x) ** 2
-            idx = np.where(distance_partial == distance_partial.min())[0][0]
-            return idx
+            loc = np.where(distance_partial == distance_partial.min())[0][0]
+            return loc
 
         if event.button == MouseButton.MIDDLE:
             pass
@@ -319,6 +334,51 @@ class App(tkinter.Tk):
             self.xylabel.configure(text=f"({int(x)}, {int(y)})")
         else:
             self.xylabel.configure(text=f"")
+
+    def next_scan(self):
+        """
+        Sets the next scan
+        :return: None
+        """
+        if self.scans_index < len(self.scans) - 1:
+            if self.autosave:
+                self.save_scan()
+            self.scans_index += 1
+            self.redraw_scan()
+        else:
+            self.bell()
+
+    def prev_scan(self):
+        """
+        Sets the previous scan
+        :return: None
+        """
+        if self.scans_index > 0:
+            if self.autosave:
+                self.save_scan()
+            self.scans_index -= 1
+            self.redraw_scan()
+        else:
+            self.bell()
+
+    def select_next_joint(self):
+        """
+        Marks the next joint in the list as selected.
+        :return: None
+        """
+        if self.current_scan.selected_joint is not None:
+            if self.current_scan.selected_joint < len(self.current_scan.joints) - 1:
+                self.current_scan.selected_joint += 1
+            else:
+                self.current_scan.selected_joint = 0
+        else:
+            self.current_scan.selected_joint = 0
+        for idx, joint in enumerate(self.current_scan.joints):
+            if idx == self.current_scan.selected_joint:
+                joint.patch.set_edgecolor('yellow')
+            else:
+                joint.patch.set_edgecolor('red')
+        self.canvas.draw()
 
     def open_dir(self):
         """
@@ -389,11 +449,13 @@ class App(tkinter.Tk):
         Completely redraws the Matplotlib image plot and patches.
         This is unfortunately slow, but necessary, as the image size changes.
         """
+        self.colors_index = 0
         self.plot.clear()
         self.plot.imshow(self.current_scan.image, cmap='gist_gray')
         for joint in self.current_scan.joints:
             self.plot.add_patch(joint.patch)
-            pt = self.plot.scatter(joint.x, joint.y, alpha=0.5, marker="o")
+            self.plot.add_patch(joint.marker_patch)
+            pt = self.plot.scatter(joint.x, joint.y, alpha=0.5, marker="o", c=self.next_color)
             pt.set_label(joint.label)
             self.points.append(pt)
         self.plot.axis(self.current_scan.axlimits)
@@ -424,7 +486,7 @@ class App(tkinter.Tk):
         self.current_scan.backup_image = self.current_scan.image.copy()
         self.current_scan.contrast_enhancement += contrast_delta
         self.current_scan.image = ImageEnhance.Contrast(self.current_scan.image).enhance(
-            self.current_scan.contrast_enhancement)
+                self.current_scan.contrast_enhancement)
         self.display_prompt(f"Contrast {self.current_scan.contrast_enhancement: 0.2f}")
         self.redraw_scan()
 
