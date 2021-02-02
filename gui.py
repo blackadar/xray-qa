@@ -428,21 +428,22 @@ class App(tkinter.Tk):
         :return: None
         """
         patient = tkinter.simpledialog.askstring("Custom Start", "Patient ID")
-        patient = patient.strip()
         self.canvas.get_tk_widget().focus_force()
+        if patient is not None and patient != '':
+            patient = patient.strip()
 
-        found = False
-        for idx, scan in enumerate(self.scans):
-            if str(scan.patient).strip() == patient:
-                self.scans_index = idx
-                found = True
-                break
+            found = False
+            for idx, scan in enumerate(self.scans):
+                if str(scan.patient).strip() == patient:
+                    self.scans_index = idx
+                    found = True
+                    break
 
-        if not found:
-            messagebox.showerror("Invalid Patient ID", f"No Patient with ID {patient} is loaded.")
-            return
-        else:
-            self.redraw_scan()
+            if not found:
+                messagebox.showerror("Invalid Patient ID", f"No Patient with ID {patient} is loaded.")
+                return
+            else:
+                self.redraw_scan()
 
     def redraw_scan(self):
         """
@@ -611,6 +612,7 @@ class App(tkinter.Tk):
         """
         self.scans[self.scans_index] = Scan.from_files(self.current_scan.image_path, self.current_scan.info_path)
         self.redraw_scan()
+        self.canvas.get_tk_widget().focus_force()
 
     def display_prompt(self, text):
         """
