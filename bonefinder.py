@@ -2,6 +2,7 @@
 Handles Inputs/Outputs from BoneFinder (Manchester)
 """
 import pathlib
+import shutil
 
 from PIL import Image
 
@@ -101,9 +102,14 @@ def pts_image_to_Scan(pts_path, image_path):
     """
     image = Image.open(image_path)
     pts_path = pathlib.Path(pts_path)
-    patient = pts_path.stem.split('.')[0]
+    pvinf = pts_path.stem.split('.')[0].split('_')
+    patient = pvinf[0]
+    if len(pvinf) == 2:
+        visit = pvinf[1]
+    else:
+        visit = None
     joints = pts_to_Joints(pts_path)
-    return Scan(image, joints, 'b', patient, image_path=str(image_path))
+    return Scan(image, joints, 'b', patient, image_path=str(image_path), visit=visit)
 
 
 def convert_pts_directory(pts_dir, images_dir):
@@ -120,7 +126,65 @@ def convert_pts_directory(pts_dir, images_dir):
     images_list = list(images_dir.glob(f"*.png"))
 
     for pts in pts_list:
-        match = [img for img in images_list if str(pts.stem) in str(img.name)]
+        pts_name = pts.stem.split('.')[0]
+        match = [img for img in images_list if pts_name in str(img.name)]
         im = match[0]
         s = pts_image_to_Scan(pts, im)
         s.save()
+
+
+##################################################################################
+# Functions to handle Finding Best Fit from QoF Summary, and Moving the PTS file #
+##################################################################################
+
+def select_qof(qof_path, pts_dir, selection_out_dir):
+    """
+    Reads a QOF txt and decides on which .pts file to use.
+    Copies the pts file to one which has a simpler name.
+    :param selection_out_dir:
+    :param qof_path:
+    :param pts_dir:
+    :return:
+    """
+    pts_dir = pathlib.Path(pts_dir)
+    qof_path = pathlib.Path(qof_path)
+    selection_out_dir = pathlib.Path(selection_out_dir)
+
+    with open(qof_path) as f:
+        sets = []
+        lines = f.readlines()
+        lbls = lines[0]
+        for line in lines[1:]:
+            cols = line.split()
+            pts_path = cols[0].split(":")[0]
+            pts_file = pts_path.split("/")[-1]
+            patient_visit = pts_file.split('.')[0]
+            qof_sum = cols[1]
+            sets.append((patient_visit, pts_file, qof_sum))
+
+    it_patient_visit = sets[0][0]
+    it_max_qof_sum = sets[0][2]
+    it_max_qof_sum_idx = 0
+
+    for idx, s in enumerate(sets):
+        if s[0] == it_patient_visit:
+            # Same Patient/Visit, another QOF entry to compare
+            if s[2] > it_max_qof_sum:
+                # Update the Max
+                it_max_qof_sum = s[2]
+                it_max_qof_sum_idx = idx
+            else:
+                # Leave the Max
+                continue
+        else:
+            # New Patient/Visit, first write the best to the out dir
+            shutil.copy(pts_dir / sets[it_max_qof_sum_idx][1], selection_out_dir / (it_patient_visit + ".pts"))
+            # Then set up for the group of patient/visit
+            it_patient_visit = s[0]
+            it_max_qof_sum = s[2]
+            it_max_qof_sum_idx = idx
+
+    # Handle the last one
+    shutil.copy(pts_dir / sets[it_max_qof_sum_idx][1], selection_out_dir / (it_patient_visit + ".pts"))
+
+

@@ -9,8 +9,6 @@ import numpy as np
 import scipy.ndimage as ndimage
 from PIL import Image
 
-from scan import Scan, Joint
-
 config = configparser.ConfigParser()
 config.read('xray-qa.cfg')
 WIDTH = int(config['roi-size']['width'])
@@ -25,6 +23,8 @@ def main():
     Runs the cropping tool on read_from
     :return: None
     """
+    from scan import Scan
+
     scans = []
     images = list(read_from.glob(f"*.png"))
     infos = list(read_from.glob(f"*.txt"))
