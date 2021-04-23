@@ -126,19 +126,25 @@ class Scan:
             dists.append(s.euclidean_distance(o))
         return np.sum(np.array(dists))
 
-    def dice_similarity(self, other):
+    def dice_similarity(self, other, count_over=None):
         """
         Finds DICE similarity to other scan.
         Average of DICE similarity of Joints.
+        :param count_over: float Also return the count of dice scores over this.
         :param other: other Scan to find Distance to
-        :return: float Distance
+        :return: float Distance or (float Distance, int # Over count_over)
         """
         assert type(other) is Scan
         assert len(self.joints) == len(other.joints)
+
         dists = []
         for s, o in zip(self.joints, other.joints):
             dists.append(s.dice_similarity(o, size=self.image.size))
-        return np.divide(np.sum(np.array(dists)), len(self.joints))
+        distance = np.divide(np.sum(np.array(dists)), len(self.joints))
+        if count_over is None:
+            return distance
+        else:
+            return distance, np.count_nonzero(np.array(dists) >= count_over)
 
 
 class Joint:
@@ -303,10 +309,11 @@ class Joint:
 
         return im
 
-    def dice_similarity(self, other, size):
+    def dice_similarity(self, other, size, return_name=False):
         """
         Calculates DICE distance between one joint and another.
         Gets a mask for both based on the parent image and finds the DICE diff.
+        :param return_name: Return the joint name
         :param size: (int, int) size of image
         :param other: Joint to find distance to
         :return: float distance
@@ -315,4 +322,7 @@ class Joint:
         mask_a = self.build_mask(size)
         mask_b = other.build_mask(size)
 
-        return dice(mask_a, mask_b, empty_score=1.0)
+        if not return_name:
+            return dice(mask_a, mask_b, empty_score=1.0)
+        else:
+            return dice(mask_a, mask_b, empty_score=1.0), self.label
