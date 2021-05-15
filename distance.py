@@ -8,7 +8,7 @@ from tools import progress
 from multiprocessing import Pool, cpu_count
 
 set_a = "C:\\Users\\Jordan\\PycharmProjects\\xray-qa\\data\\qa-all"  # QA
-set_b = "C:\\Users\\Jordan\\PycharmProjects\\xray-qa\\data\\processed_v2_bonefinder_release"  # Comparison
+set_b = "C:\\Users\\Jordan\\PycharmProjects\\xray-qa\\data\\carmine_9"  # Comparison
 images = "C:\\Users\\Jordan\\PycharmProjects\\xray-qa\\data\\processed_v2"  # Images (used for Size)
 
 ignore_visit = True  # Ignore visit # in parsing
@@ -16,12 +16,16 @@ mp = True  # Turn on Multiprocessing for Supported Operations
 save = False  # Save supported results to npy files
 
 euclidean = False  # Find Euclidean Distance
-dice = False  # Find DICE Distance
-meta = False  # Calculate correlation stats
+dice = True  # Find DICE Distance
+meta = False  # Calculate correlation stats between Euclidean and Dice
 joint_stats = True  # Find "problem" joints by < TPR Threshold
 
-top = 100
-tpr_threshold = 0.5
+top = 100  # Display top n results
+tpr_threshold = 0.5  # TPR Threshold for Score
+# Below is a path (or False) which needs an equal comparison. Results not present in set_eq will be excluded from this
+# run. This allows for equivalent comparison.
+# set_eq = "C:\\Users\\Jordan\\PycharmProjects\\xray-qa\\data\\carmine_3"
+set_eq = False
 
 
 def _mp_work(x, y):
@@ -52,7 +56,14 @@ def main():
     b_stems = [path.stem for path in b_infos] if not ignore_visit else [path.stem.split("_")[0] for path in b_infos]
     im_stems = [path.stem for path in all_imgs] if not ignore_visit else [path.stem.split("_")[0] for path in b_infos]
 
-    intersection = (set(a_stems) & set(b_stems)) & set(im_stems)
+    if set_eq:
+        e = pathlib.Path(set_eq)
+        e_infos = list(e.glob(f"*.txt"))
+        e_stems = [path.stem for path in e_infos] if not ignore_visit else [path.stem.split("_")[0] for path in e_infos]
+        intersection = (((set(a_stems) & set(b_stems)) & set(im_stems)) & set(e_stems))
+    else:
+        intersection = (set(a_stems) & set(b_stems)) & set(im_stems)
+
     a_infos = [inf for inf in a_infos if (inf.stem if not ignore_visit else inf.stem.split("_")[0]) in intersection]
     b_infos = [inf for inf in b_infos if (inf.stem if not ignore_visit else inf.stem.split("_")[0]) in intersection]
     all_imgs = [im for im in all_imgs if (im.stem if not ignore_visit else im.stem.split("_")[0]) in intersection]
@@ -65,6 +76,8 @@ def main():
         a_scan = Scan.from_files(im, a)
         b_scan = Scan.from_files(im, b)
         pairs.append((a_scan, b_scan))
+
+    print(f"{len(pairs)} Scans will be considered.")
 
     if euclidean:
 
