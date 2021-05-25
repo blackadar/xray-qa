@@ -8,7 +8,7 @@ from tools import progress
 from multiprocessing import Pool, cpu_count
 
 set_a = "C:\\Users\\Jordan\\PycharmProjects\\xray-qa\\data\\qa-all"  # QA
-set_b = "C:\\Users\\Jordan\\PycharmProjects\\xray-qa\\data\\carmine_9"  # Comparison
+set_b = "C:\\Users\\Jordan\\PycharmProjects\\xray-qa\\data\\carmine_11"  # Comparison
 images = "C:\\Users\\Jordan\\PycharmProjects\\xray-qa\\data\\processed_v2"  # Images (used for Size)
 
 ignore_visit = True  # Ignore visit # in parsing
@@ -20,7 +20,7 @@ dice = True  # Find DICE Distance
 meta = False  # Calculate correlation stats between Euclidean and Dice
 joint_stats = True  # Find "problem" joints by < TPR Threshold
 
-top = 100  # Display top n results
+top = 10  # Display top n results
 tpr_threshold = 0.5  # TPR Threshold for Score
 # Below is a path (or False) which needs an equal comparison. Results not present in set_eq will be excluded from this
 # run. This allows for equivalent comparison.
@@ -147,6 +147,14 @@ def main():
         print(f"Top {top} Dissimilar:")
 
         for idx, p in enumerate(srt[:top]):
+            dist = p[0]
+            a = p[1][0]
+            b = p[1][1]
+            print(f"- {dist: 0.2f} : {a.patient} ({a.info_path} <> {b.info_path})")
+
+        print(f"Top {top} Similar:")
+
+        for idx, p in enumerate(srt[-top:]):
             dist = p[0]
             a = p[1][0]
             b = p[1][1]
